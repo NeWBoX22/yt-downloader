@@ -1,5 +1,6 @@
 
 # YouTube Downloader via PowerShell
+> Desenvolvido por NeWBoX22 - Projeto ainda em desenvolvimento
 
 Esse repositório contém um script PowerShell (`script.ps1`) que baixa vídeos do YouTube diretamente para a sua pasta **Downloads**, salvando-os como arquivos MP4 com áudio AAC, adicionando a data de download ao nome e ajustando a “Data de Modificação” do arquivo no Windows Explorer.
 
@@ -71,4 +72,4 @@ Este projeto está disponível sob a [MIT License](LICENSE). Sinta‑se à vonta
 
 ---
 
-*Desenvolvido por NeWBoX22*
+
