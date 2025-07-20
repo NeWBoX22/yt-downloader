@@ -1,51 +1,70 @@
-# Define pasta do yt-dlp no %APPDATA%
-$ytDlpFolder = Join-Path $env:APPDATA "yt-downloader"
-New-Item -ItemType Directory -Path $ytDlpFolder -Force | Out-Null
-$ytDlpPath = Join-Path $ytDlpFolder "yt-dlp.exe"
+# Caminho para yt-dlp
+$ytDlpPath = "$env:APPDATA\yt-downloader\yt-dlp.exe"
 
-# Baixa yt-dlp se ainda não existir
-if (!(Test-Path $ytDlpPath)) {
-    Write-Host "Baixando yt-dlp.exe..."
+# Criação da pasta, se não existir
+if (-not (Test-Path $ytDlpPath)) {
+    Write-Host "Baixando yt-dlp.exe na pasta %APPDATA%\yt-downloader..."
+    $ytDlpFolder = Split-Path $ytDlpPath
+    New-Item -ItemType Directory -Path $ytDlpFolder -Force | Out-Null
     Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile $ytDlpPath
 }
 
-# Define pasta de destino (Downloads)
+# Pasta Downloads
 $downloadsPath = [Environment]::GetFolderPath("UserProfile")
 $savePath = Join-Path $downloadsPath "Downloads"
 
-# Início
-Clear-Host
-Write-Host "`nYouTube Downloader via PowerShell`n"
-Write-Host "⚠️  AVISO: Ctrl + V NÃO funciona aqui."
-Write-Host "Use o botão direito do mouse para colar, ou toque com dois dedos no touchpad.`n"
 
-# Entrada do link
-$url = Read-Host "Cole o link do vídeo do YouTube"
-
-# Data atual formatada
-$dataHoje = Get-Date -Format "yyyy-MM-dd"
-
-# Monta o nome do arquivo
-$filenameTemplate = "%(title)s_$dataHoje.%(ext)s"
-
-# Executa o download
-& $ytDlpPath $url `
-    --output "$savePath\$filenameTemplate" `
-    -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" `
-    --merge-output-format mp4
-
-# Procura o arquivo baixado
-$info = & $ytDlpPath $url --print "%(title)s"
-$title = $info.Trim()
-$finalFileName = "$title" + "_$dataHoje.mp4"
-$finalFile = Join-Path $savePath $finalFileName
-
-
-# Define data de modificação (opcional)
-if (Test-Path $finalFile) {
-    (Get-Item $finalFile).LastWriteTime = Get-Date
-    Write-Host "`n✅ Download concluído:"
-    Write-Host "$finalFile"
-} else {
-    Write-Host "`n⚠️  Não foi possível encontrar o arquivo baixado."
+function Test-YouTubeLink($url) {
+    return $url -match '^https?://(www\.)?(youtube\.com|youtu\.be)/'
 }
+
+function Get-YouTubeVideoData($url) {
+    $json = & $ytDlpPath $url --print-json --skip-download 2>$null
+    if (-not $json) { return $null }
+    return $json | ConvertFrom-Json
+}
+
+function Save-YouTubeVideo($url) {
+    try {
+        if (-not (Test-YouTubeLink $url)) {
+            Write-Warning "Link inválido. Insira uma URL do YouTube válida."
+            return
+        }
+
+        $dados = Get-YouTubeVideoData $url
+        if (-not $dados) {
+            Write-Warning "Não foi possível obter informações do vídeo."
+            return
+        }
+
+        $titulo = $dados.title -replace '[\\\/:*?"<>|]', ''
+        $dataHoje = Get-Date -Format "yyyy-MM-dd"
+        $nomeArquivoFinal = "${titulo}_$dataHoje.mp4"
+        $caminhoCompleto = Join-Path $savePath $nomeArquivoFinal
+
+        & $ytDlpPath $url `
+            -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" `
+            --merge-output-format mp4 `
+            -o "$caminhoCompleto" 2>&1 | Out-Null
+
+        if (Test-Path $caminhoCompleto) {
+            # Ajustar a data de modificação para a data de hoje
+            (Get-Item $caminhoCompleto).LastWriteTime = Get-Date
+            Write-Host "Vídeo salvo em: $caminhoCompleto"
+        } else {
+            Write-Warning "Falha ao baixar o vídeo."
+        }
+
+    } catch {
+        Write-Error "Ocorreu um erro: $_"
+    }
+}
+
+do {
+    Write-Host "`nCole o link do vídeo do YouTube:"
+    $url = Read-Host
+    if ($url) {
+        Save-YouTubeVideo $url
+    }
+    $continuar = Read-Host "`nDeseja baixar outro vídeo? (s/n)"
+} while ($continuar -match '^(s|sim)$')
