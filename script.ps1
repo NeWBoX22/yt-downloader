@@ -1,70 +1,95 @@
-# Caminho para yt-dlp
-$ytDlpPath = "$env:APPDATA\yt-downloader\yt-dlp.exe"
-
-# Criação da pasta, se não existir
-if (-not (Test-Path $ytDlpPath)) {
-    Write-Host "Baixando yt-dlp.exe na pasta %APPDATA%\yt-downloader..."
-    $ytDlpFolder = Split-Path $ytDlpPath
-    New-Item -ItemType Directory -Path $ytDlpFolder -Force | Out-Null
-    Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile $ytDlpPath
+# Caminhos
+$ytDlpDir = "$env:APPDATA\yt-downloader"
+$ytDlpPath = Join-Path $ytDlpDir "yt-dlp.exe"
+$logFile = Join-Path $ytDlpDir "log.txt"
+$dataHoje = Get-Date -Format "yyyy-MM-dd"
+# Função de log
+function Write-Log {
+    param([string]$msg)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Add-Content -Path $logFile -Value "[$timestamp] $msg"
 }
 
-# Pasta Downloads
-$downloadsPath = [Environment]::GetFolderPath("UserProfile")
-$savePath = Join-Path $downloadsPath "Downloads"
-
-
-function Test-YouTubeLink($url) {
-    return $url -match '^https?://(www\.)?(youtube\.com|youtu\.be)/'
+# Cria diretório se não existir
+if (!(Test-Path $ytDlpDir)) {
+    New-Item -Path $ytDlpDir -ItemType Directory | Out-Null
+    Write-Log "Criado diretório: $ytDlpDir"
 }
 
-function Get-YouTubeVideoData($url) {
-    $json = & $ytDlpPath $url --print-json --skip-download 2>$null
-    if (-not $json) { return $null }
-    return $json | ConvertFrom-Json
+# Atualização automática do yt-dlp
+function Update-YtDlp {
+    Write-Log "Verificando existência do yt-dlp..."
+    $needDownload = $true
+    if (Test-Path $ytDlpPath) {
+        try {
+            $localVersion = & $ytDlpPath --version
+            $latestVersion = (Invoke-RestMethod "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest").tag_name
+            if ($localVersion -eq $latestVersion) {
+                Write-Log "yt-dlp está atualizado: $localVersion"
+                $needDownload = $false
+            } else {
+                Write-Log "Atualização disponível: $localVersion → $latestVersion"
+            }
+        } catch {
+            Write-Log "Erro ao verificar versão: $_"
+        }
+    }
+
+    if ($needDownload) {
+        Write-Log "Baixando yt-dlp.exe..."
+        try {
+            Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile $ytDlpPath
+            Write-Log "yt-dlp.exe baixado com sucesso."
+        } catch {
+            Write-Log "Erro ao baixar yt-dlp: $_"
+            throw "Erro ao baixar yt-dlp."
+        }
+    }
 }
+Update-YtDlp
 
-function Save-YouTubeVideo($url) {
-    try {
-        if (-not (Test-YouTubeLink $url)) {
-            Write-Warning "Link inválido. Insira uma URL do YouTube válida."
-            return
-        }
+# Caminho de salvamento customizável
+$savePath = "$env:USERPROFILE\Downloads"
 
-        $dados = Get-YouTubeVideoData $url
-        if (-not $dados) {
-            Write-Warning "Não foi possível obter informações do vídeo."
-            return
-        }
+# Função para baixar vídeo
+function Save-YouTubeVideo {
+    param([string]$url)
 
-        $titulo = $dados.title -replace '[\\\/:*?"<>|]', ''
-        $dataHoje = Get-Date -Format "yyyy-MM-dd"
-        $nomeArquivoFinal = "${titulo}_$dataHoje.mp4"
-        $caminhoCompleto = Join-Path $savePath $nomeArquivoFinal
+    Write-Log "Iniciando download: $url"
 
-        & $ytDlpPath $url `
-            -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" `
-            --merge-output-format mp4 `
-            -o "$caminhoCompleto" 2>&1 | Out-Null
+    # Download + merge em MP4 sem preservar mtime original
+    & $ytDlpPath $url `
+        --no-playlist `
+        --no-mtime `
+        --output "$savePath\%(title)s_$dataHoje.mp4" `
+        -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" `
+        --merge-output-format mp4
 
-        if (Test-Path $caminhoCompleto) {
-            # Ajustar a data de modificação para a data de hoje
-            (Get-Item $caminhoCompleto).LastWriteTime = Get-Date
-            Write-Host "Vídeo salvo em: $caminhoCompleto"
-        } else {
-            Write-Warning "Falha ao baixar o vídeo."
-        }
+    # Encontra o arquivo baixado (o mais recente com nossa marca de data)
+    $arquivo = Get-ChildItem "$savePath\*_$dataHoje.mp4" |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
 
-    } catch {
-        Write-Error "Ocorreu um erro: $_"
+    if ($arquivo) {
+        # Ajusta a Data de Modificação para agora
+        (Get-Item $arquivo.FullName).LastWriteTime = Get-Date
+        Write-Log "Data de modificação ajustada para agora: $($arquivo.FullName)"
+    } else {
+        Write-Log "Não foi possível localizar o arquivo para ajuste de Data de Modificação."
     }
 }
 
-do {
-    Write-Host "`nCole o link do vídeo do YouTube:"
-    $url = Read-Host
-    if ($url) {
-        Save-YouTubeVideo $url
+# Laço de download contínuo com cancelamento
+while ($true) {
+    $url = Read-Host "Cole o link do vídeo (ou digite 'sair' para encerrar)"
+    if ($url -eq "sair") {
+        Write-Log "Encerrando script por comando do usuário."
+        break
     }
-    $continuar = Read-Host "`nDeseja baixar outro vídeo? (s/n)"
-} while ($continuar -match '^(s|sim)$')
+
+    if ($url -match "^https?://") {
+        Save-YouTubeVideo -url $url
+    } else {
+        Write-Host "URL inválida. Tente novamente."
+    }
+}
