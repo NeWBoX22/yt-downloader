@@ -2,7 +2,7 @@
 # YouTube Downloader via PowerShell
 > Desenvolvido por NeWBoX22 - Projeto ainda em desenvolvimento
 
-Esse repositório contém um script PowerShell (`script.ps1`) que baixa vídeos do YouTube diretamente para a sua pasta **Downloads**, salvando-os como arquivos MP4 com áudio AAC, adicionando a data de download ao nome e ajustando a “Data de Modificação” do arquivo no Windows Explorer.
+Esse repositório contém um script PowerShell (`script.ps1`) que baixa vídeos do YouTube diretamente para a sua pasta **Downloads**, salvando-os como arquivos MP4 com áudio AAC.
 
 ---
 
@@ -11,13 +11,12 @@ Esse repositório contém um script PowerShell (`script.ps1`) que baixa vídeos 
 - Windows 10/11  
 - PowerShell (versão ≥ 5.1 ou PowerShell 7+)  
 - Conexão com internet  
-- Permissão para executar scripts locais (caso necessário, abra PowerShell **como Administrador** e rode:  
+- Permissão para executar scripts locais (caso necessário, abra PowerShell **como Administrador** e digite:  
 
   ```powershell
 
   Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-
+  ```
 ---
 
 ## 🚀 Como usar
@@ -48,13 +47,13 @@ Esse repositório contém um script PowerShell (`script.ps1`) que baixa vídeos 
 
 ## ⚙️ O que o script faz
 
-* ✔️ **Baixa** ou **atualiza** automaticamente o `yt-dlp.exe` em `%APPDATA%\yt-downloader\`.
-* ✔️ Força saída em **MP4** (vídeo MP4 + áudio M4A muxados em container MP4).
-* ✔️ Adiciona **data de download** (`YYYY-MM-DD`) ao nome do arquivo.
-* ✔️ Ajusta a **Data de Modificação** do arquivo para o momento exato do download.
-* ✔️ Exibe o **progresso** padrão do yt‑dlp no console.
-* ✔️ Registra eventos e erros em `%APPDATA%\yt-downloader\log.txt`.
-* ✔️ Permite baixar **vários vídeos** em sequência; digite `sair` para encerrar.
+*  **Baixa** ou **atualiza** automaticamente o `yt-dlp.exe` em `%APPDATA%\yt-downloader\`.
+*  Força saída em **MP4** (vídeo MP4 + áudio M4A muxados em container MP4).
+*  Adiciona **data de download** (`YYYY-MM-DD`) ao nome do arquivo.
+*  Ajusta a **Data de Modificação** do arquivo para o momento exato do download.
+*  Exibe o **progresso** padrão do yt‑dlp no console.
+*  Registra eventos e erros em `%APPDATA%\yt-downloader\log.txt`.
+*  Permite baixar **vários vídeos** em sequência; digite `sair` para encerrar.
 
 ---
 
