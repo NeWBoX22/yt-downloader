@@ -57,9 +57,7 @@ function Save-YouTubeVideo {
 
     Write-Log "Iniciando download: $url"
 
-    # Download + merge em MP4 sem preservar mtime original
- # Download + merge em MP4 sem preservar mtime original
-     # Download + merge em MP4 sem preservar mtime original
+     # Download + merge em MP4 + m4a sem preservar mtime original
      & $ytDlpPath $url `
         --no-playlist `
         --no-mtime `
