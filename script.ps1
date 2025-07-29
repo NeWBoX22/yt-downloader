@@ -58,11 +58,13 @@ function Save-YouTubeVideo {
     Write-Log "Iniciando download: $url"
 
     # Download + merge em MP4 sem preservar mtime original
-    & $ytDlpPath $url `
+ # Download + merge em MP4 sem preservar mtime original
+     # Download + merge em MP4 sem preservar mtime original
+     & $ytDlpPath $url `
         --no-playlist `
         --no-mtime `
-        --output "$savePath\%(title)s_$dataHoje.mp4" `
-        -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" `
+        --output "$savePath\%(title)s_$dataHoje.%(ext)s" `
+        -f "bestvideo[ext=mp4][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]" `
         --merge-output-format mp4
 
     # Encontra o arquivo baixado (o mais recente com nossa marca de data)
