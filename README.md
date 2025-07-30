@@ -31,7 +31,7 @@ Esse repositório contém um script PowerShell (`script.ps1`) que baixa vídeos 
 **Link Alternativos**
     
   ```powershell
-  irm 'https://spectacular-praline-eb959c.netlify.app/script.ps1' | iex
+  irm 'https://yt-downloader-shell.netlify.app/script.ps1' | iex
   ```
 3. **Cole a URL** do vídeo YouTube quando solicitado:
 
