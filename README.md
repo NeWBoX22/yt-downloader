@@ -1,5 +1,12 @@
 # YouTube Downloader
 
+![GitHub Release](https://img.shields.io/github/v/release/NeWBoX22/yt-downloader) ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/NeWBoX22/yt-downloader/main) ![GitHub top language](https://img.shields.io/github/languages/top/NeWBoX22/yt-downloader) ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/NeWBoX22/yt-downloader/total) 
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/NeWBoX22/yt-downloader)
+
+
+
+
+
 
 ## Visão Geral
 
