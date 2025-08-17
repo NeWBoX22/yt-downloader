@@ -36,7 +36,7 @@ Este projeto é construído sobre uma base tecnológica sólida, garantindo dese
 
 ## Como Instalar e Rodar
 
-Siga os passos abaixo para configurar e executar o YouTube Downloader Pro - Qt Edition em seu sistema.
+Siga os passos abaixo para configurar e executar o YouTube Downloader em seu sistema.
 
 ### Pré-requisitos
 
@@ -50,10 +50,10 @@ Antes de começar, certifique-se de ter os seguintes softwares instalados:
 1. **Clone o Repositório**:
    Abra seu terminal ou prompt de comando e clone o projeto do GitHub:
    ```bash
-   git clone https://github.com/seu-usuario/youtube-downloader-qt.git
-   cd youtube-downloader-qt
+   git clone https://github.com/NeWboX22/yt-downloader.git
+   cd yt-downloader
    ```
-   *(Substitua `seu-usuario` pelo seu nome de usuário do GitHub e `youtube-downloader-qt` pelo nome do seu repositório, se for diferente.)*
+
 
 2. **Crie e Ative um Ambiente Virtual** (Recomendado):
    É uma boa prática isolar as dependências do projeto em um ambiente virtual.
@@ -85,14 +85,14 @@ Antes de começar, certifique-se de ter os seguintes softwares instalados:
 Após a instalação das dependências, você pode iniciar o aplicativo:
 
 ```bash
-python main_qt.py
+python main.py
 ```
 
 Isso abrirá a janela principal do YouTube Downloader Pro - Qt Edition.
 
 ## Estrutura do Projeto
 
-- `main_qt.py`: O arquivo principal que contém a lógica da interface gráfica e a integração com as funcionalidades de download.
+- `main.py`: O arquivo principal que contém a lógica da interface gráfica e a integração com as funcionalidades de download.
 - `debug_qt.log`: Um arquivo de log gerado pela aplicação para depuração e registro de operações.
 - `downloader_config.json`: Um arquivo JSON que armazena as configurações do usuário, como a pasta de destino e o histórico de downloads.
 - `downloads/`: O diretório padrão onde os arquivos baixados serão salvos. Este diretório é criado automaticamente se não existir.
