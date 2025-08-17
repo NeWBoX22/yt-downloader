@@ -3,9 +3,9 @@
 ![GitHub Release](https://img.shields.io/github/v/release/NeWBoX22/yt-downloader) ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/NeWBoX22/yt-downloader/main) ![GitHub top language](https://img.shields.io/github/languages/top/NeWBoX22/yt-downloader) ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/NeWBoX22/yt-downloader/total) 
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/NeWBoX22/yt-downloader)
 
+## Novidades em Breve
 
-
-
+Estamos trabalhando para disponibilizar **versões compiladas em `.exe`** do YouTube Downloader. Isso permitirá que você utilize o aplicativo sem a necessidade de instalar o Python ou configurar dependências manualmente. Fique atento às atualizações no repositório para mais novidades!
 
 
 ## Visão Geral
