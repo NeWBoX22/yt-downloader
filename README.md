@@ -99,7 +99,7 @@ Contribuições são **muito bem-vindas**! Se você tiver ideias para novas func
 
 ## Licença
 
-Este projeto está licenciado sob a [Nome da Licença, por exemplo, Licença MIT]. Veja o arquivo `LICENSE` para mais detalhes.
+Este projeto está licenciado sob a Licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
 
 ---
 
