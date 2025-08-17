@@ -1,264 +1,467 @@
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-import yt_dlp
-import os
-import threading
-from pathlib import Path
 
-class YouTubeDownloader:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("YouTube Video Downloader")
-        self.root.geometry("600x400")
-        self.root.resizable(True, True)
-        
-        # Criar pasta downloads se não existir
+import sys
+import asyncio
+import os
+import time
+import threading
+import json
+from pathlib import Path
+from datetime import datetime
+import yt_dlp
+import traceback
+
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QLineEdit, QPushButton, QComboBox, QProgressBar, QTextEdit,
+    QFileDialog, QMessageBox
+)
+from PySide6.QtCore import Qt, Signal, QObject
+from PySide6.QtGui import QFont
+
+import logging
+logging.basicConfig(filename='debug_qt.log', level=logging.DEBUG, filemode='w',
+                    format='%(asctime)s %(levelname)s %(message)s')
+
+class WorkerSignals(QObject):
+    # Define signals for communication from worker thread to main thread
+    update_status = Signal(str, int)
+    log_message = Signal(str)
+    error_dialog = Signal(str, str)
+    info_dialog = Signal(str, str)
+    video_info_updated = Signal(str)
+
+class YouTubeDownloaderQt(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("YouTube Downloader Pro - Qt Edition")
         self.downloads_path = Path("downloads")
         self.downloads_path.mkdir(exist_ok=True)
-        
-        self.setup_ui()
-        
-    def setup_ui(self):
-        # Frame principal
-        main_frame = ttk.Frame(self.root, padding="20")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Configurar grid
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        
+        self.config_file = Path("downloader_config.json")
+        self.download_history = []
+        self.is_downloading = False
+        self.download_thread = None
+        self.cancel_event = threading.Event()
+        self.load_config()
+
+        self.signals = WorkerSignals()
+        self.signals.update_status.connect(self._update_status_ui)
+        self.signals.log_message.connect(self._update_log_text)
+        self.signals.error_dialog.connect(self._show_error_dialog)
+        self.signals.info_dialog.connect(self._show_info_dialog)
+        self.signals.video_info_updated.connect(self._update_video_info_label)
+
+        self.init_ui()
+
+    def init_ui(self):
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+
         # Título
-        title_label = ttk.Label(main_frame, text="YouTube Video Downloader", 
-                               font=("Arial", 16, "bold"))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
-        
-        # URL do vídeo
-        ttk.Label(main_frame, text="URL do YouTube:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        self.url_var = tk.StringVar()
-        self.url_entry = ttk.Entry(main_frame, textvariable=self.url_var, width=50)
-        self.url_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=(10, 0), pady=5)
-        self.url_entry.bind("<Control-v>", self.paste_from_clipboard)
-        self.url_entry.bind("<Control-c>", self.copy_to_clipboard)
-        self.url_entry.bind("<Control-x>", self.cut_to_clipboard)
-        
-        # Botão de colar URL
-        paste_btn = ttk.Button(main_frame, text="Colar", command=self.paste_url)
-        paste_btn.grid(row=1, column=2, padx=(10, 0), pady=5)
-        
-        # Pasta de destino
-        ttk.Label(main_frame, text="Pasta de destino:").grid(row=2, column=0, sticky=tk.W, pady=5)
-        self.folder_var = tk.StringVar(value=str(self.downloads_path.absolute()))
-        self.folder_entry = ttk.Entry(main_frame, textvariable=self.folder_var, width=50)
-        self.folder_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), padx=(10, 0), pady=5)
-        self.folder_entry.bind("<Control-v>", self.paste_from_clipboard)
-        self.folder_entry.bind("<Control-c>", self.copy_to_clipboard)
-        self.folder_entry.bind("<Control-x>", self.cut_to_clipboard)
-        
-        # Botão para escolher pasta
-        browse_btn = ttk.Button(main_frame, text="Procurar", command=self.browse_folder)
-        browse_btn.grid(row=2, column=2, padx=(10, 0), pady=5)
-        
-        # Qualidade do vídeo
-        ttk.Label(main_frame, text="Qualidade:").grid(row=3, column=0, sticky=tk.W, pady=5)
-        self.quality_var = tk.StringVar(value="Melhor")
-        quality_combo = ttk.Combobox(main_frame, textvariable=self.quality_var, 
-                                   values=["Melhor", "Pior", "720p", "480p", "360p"], 
-                                   state="readonly", width=20)
-        quality_combo.grid(row=3, column=1, sticky=tk.W, padx=(10, 0), pady=5)
-        
-        # Botão de download
-        self.download_btn = ttk.Button(main_frame, text="Baixar Vídeo", 
-                                     command=self.start_download, style="Accent.TButton")
-        self.download_btn.grid(row=4, column=0, columnspan=3, pady=20)
-        
+        title_label = QLabel("YouTube Downloader Pro - Qt Edition")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_font = QFont()
+        title_font.setPointSize(18)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        main_layout.addWidget(title_label)
+
+        # Seção URL
+        url_box = QHBoxLayout()
+        url_label = QLabel("URL:")
+        url_label.setFixedWidth(80)
+        self.url_input = QLineEdit()
+        self.url_input.setPlaceholderText("Cole aqui a URL do vídeo do YouTube...")
+        paste_btn = QPushButton("Colar")
+        paste_btn.setFixedWidth(80)
+        paste_btn.clicked.connect(self.paste_url)
+
+        url_box.addWidget(url_label)
+        url_box.addWidget(self.url_input)
+        url_box.addWidget(paste_btn)
+        main_layout.addLayout(url_box)
+
+        # Seção pasta de destino
+        folder_box = QHBoxLayout()
+        folder_label = QLabel("Pasta:")
+        folder_label.setFixedWidth(80)
+        self.folder_input = QLineEdit()
+        self.folder_input.setText(str(self.downloads_path.absolute()))
+        browse_btn = QPushButton("Procurar")
+        browse_btn.setFixedWidth(80)
+        browse_btn.clicked.connect(self.browse_folder)
+
+        folder_box.addWidget(folder_label)
+        folder_box.addWidget(self.folder_input)
+        folder_box.addWidget(browse_btn)
+        main_layout.addLayout(folder_box)
+
+        # Configurações de download
+        config_box = QHBoxLayout()
+
+        type_label = QLabel("Tipo:")
+        type_label.setFixedWidth(80)
+        self.download_type_selection = QComboBox()
+        self.download_type_selection.addItems(["Vídeo (MP4)", "Áudio (MP3)", "Áudio (M4A)", "Vídeo + Áudio (MKV)"])
+        self.download_type_selection.setCurrentText("Vídeo (MP4)")
+        self.download_type_selection.setFixedWidth(150)
+
+        quality_label = QLabel("Qualidade:")
+        quality_label.setFixedWidth(80)
+        self.quality_selection = QComboBox()
+        self.quality_selection.addItems(["Melhor", "Pior", "1080p", "720p", "480p", "360p", "240p"])
+        self.quality_selection.setCurrentText("720p")
+        self.quality_selection.setFixedWidth(100)
+
+        config_box.addWidget(type_label)
+        config_box.addWidget(self.download_type_selection)
+        config_box.addWidget(quality_label)
+        config_box.addWidget(self.quality_selection)
+        config_box.addStretch(1) # Adiciona um espaço flexível para empurrar os widgets para a esquerda
+        main_layout.addLayout(config_box)
+
+        # Botões de ação
+        buttons_box = QHBoxLayout()
+
+        self.download_btn = QPushButton("Baixar")
+        self.download_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.download_btn.clicked.connect(self.start_download)
+
+        self.cancel_btn = QPushButton("Cancelar")
+        self.cancel_btn.setStyleSheet("background-color: #f44336; color: white;")
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.clicked.connect(self.cancel_download)
+
+        history_btn = QPushButton("Histórico")
+        history_btn.setStyleSheet("background-color: #2196F3; color: white;")
+        history_btn.clicked.connect(self.show_history)
+
+        buttons_box.addWidget(self.download_btn)
+        buttons_box.addWidget(self.cancel_btn)
+        buttons_box.addWidget(history_btn)
+        main_layout.addLayout(buttons_box)
+
         # Barra de progresso
-        self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, 
-                                          maximum=100, length=400)
-        self.progress_bar.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
-        
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        main_layout.addWidget(self.progress_bar)
+
         # Status
-        self.status_var = tk.StringVar(value="Pronto para download")
-        self.status_label = ttk.Label(main_frame, textvariable=self.status_var, 
-                                    foreground="blue")
-        self.status_label.grid(row=6, column=0, columnspan=3, pady=5)
-        
+        self.status_label = QLabel("Pronto para download")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setStyleSheet("color: #2196F3;")
+        main_layout.addWidget(self.status_label)
+
         # Área de log
-        ttk.Label(main_frame, text="Log:").grid(row=7, column=0, sticky=(tk.W, tk.N), pady=(10, 5))
-        
-        # Frame para o log com scrollbar
-        log_frame = ttk.Frame(main_frame)
-        log_frame.grid(row=8, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
-        log_frame.columnconfigure(0, weight=1)
-        log_frame.rowconfigure(0, weight=1)
-        
-        self.log_text = tk.Text(log_frame, height=8, width=70, wrap=tk.WORD)
-        scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
-        self.log_text.configure(yscrollcommand=scrollbar.set)
-        
-        self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        
-        # Configurar redimensionamento
-        main_frame.rowconfigure(8, weight=0) # Log não redimensiona verticalmente
-        main_frame.columnconfigure(1, weight=1) # Permite redimensionamento horizontal
-        
-    def paste_from_clipboard(self, event):
-        try:
-            widget = event.widget
-            clipboard_content = self.root.clipboard_get()
-            widget.delete("sel.first", "sel.last")
-            widget.insert(tk.INSERT, clipboard_content)
-        except tk.TclError:
-            pass
-        return "break"
+        log_label = QLabel("Log de operações:")
+        log_font = QFont()
+        log_font.setBold(True)
+        log_label.setFont(log_font)
+        main_layout.addWidget(log_label)
 
-    def copy_to_clipboard(self, event):
-        try:
-            widget = event.widget
-            selected_text = widget.get("sel.first", "sel.last")
-            self.root.clipboard_clear()
-            self.root.clipboard_append(selected_text)
-        except tk.TclError:
-            pass
-        return "break"
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setPlainText("Aplicativo iniciado. Pronto para downloads.\n")
+        self.log_text.setFixedHeight(150)
+        main_layout.addWidget(self.log_text)
 
-    def cut_to_clipboard(self, event):
+        # Botões extras
+        extra_buttons_box = QHBoxLayout()
+
+        clear_log_btn = QPushButton("Limpar Log")
+        clear_log_btn.clicked.connect(self.clear_log)
+
+        open_folder_btn = QPushButton("Abrir Pasta")
+        open_folder_btn.clicked.connect(self.open_downloads_folder)
+
+        about_btn = QPushButton("Sobre")
+        about_btn.clicked.connect(self.show_about)
+
+        config_btn = QPushButton("Configurações")
+        config_btn.clicked.connect(self.show_config)
+
+        extra_buttons_box.addWidget(clear_log_btn)
+        extra_buttons_box.addWidget(open_folder_btn)
+        extra_buttons_box.addWidget(about_btn)
+        extra_buttons_box.addWidget(config_btn)
+        main_layout.addLayout(extra_buttons_box)
+
+    def load_config(self):
         try:
-            widget = event.widget
-            selected_text = widget.get("sel.first", "sel.last")
-            self.root.clipboard_clear()
-            self.root.clipboard_append(selected_text)
-            widget.delete("sel.first", "sel.last")
-        except tk.TclError:
-            pass
-        return "break"
-            
-    def paste_url(self):
-        """Cola URL da área de transferência"""
+            if self.config_file.exists():
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    self.downloads_path = Path(config.get('downloads_path', 'downloads'))
+                    self.download_history = config.get('history', [])
+        except Exception as e:
+            logging.exception("Erro ao carregar configurações: %s", e)
+            QMessageBox.critical(self, "Erro", f"Erro ao carregar configurações: {e}")
+
+    def save_config(self):
         try:
-            clipboard_content = self.root.clipboard_get()
-            self.url_var.set(clipboard_content)
-        except tk.TclError:
-            pass
-            
-    def browse_folder(self):
-        """Abre diálogo para escolher pasta de destino"""
-        folder = filedialog.askdirectory(initialdir=self.folder_var.get())
-        if folder:
-            self.folder_var.set(folder)
-            
-    def log_message(self, message):
-        """Adiciona mensagem ao log"""
-        self.log_text.insert(tk.END, f"{message}\n")
-        self.log_text.see(tk.END)
-        self.root.update_idletasks()
-        
-    def update_status(self, message, color="blue"):
-        """Atualiza o status"""
-        self.status_var.set(message)
-        self.status_label.configure(foreground=color)
-        
-    def progress_hook(self, d):
-        """Hook para atualizar progresso do download"""
-        if d["status"] == "downloading":
-            if "total_bytes" in d and d["total_bytes"]:
-                percent = (d["downloaded_bytes"] / d["total_bytes"]) * 100
-                self.progress_var.set(percent)
-                self.update_status(f"Baixando... {percent:.1f}%")
-            elif "_percent_str" in d:
-                percent_str = d["_percent_str"].strip("%")
-                try:
-                    percent = float(percent_str)
-                    self.progress_var.set(percent)
-                    self.update_status(f"Baixando... {percent:.1f}%")
-                except ValueError:
-                    pass
-        elif d["status"] == "finished":
-            self.progress_var.set(100)
-            self.update_status("Download concluído!", "green")
-            self.log_message(f"Arquivo salvo: {d['filename']}")
-            
-    def start_download(self):
-        """Inicia o download em uma thread separada"""
-        url = self.url_var.get().strip()
-        if not url:
-            messagebox.showerror("Erro", "Por favor, insira uma URL do YouTube")
-            return
-            
-        # Desabilitar botão durante download
-        self.download_btn.configure(state="disabled")
-        self.progress_var.set(0)
-        self.log_message(f"Iniciando download de: {url}")
-        
-        # Executar download em thread separada
-        thread = threading.Thread(target=self.download_video, args=(url,))
-        thread.daemon = True
-        thread.start()
-        
-    def download_video(self, url):
-        """Baixa o vídeo usando yt-dlp"""
-        try:
-            output_path = self.folder_var.get()
-            
-            # Configurações do yt-dlp
-            ydl_opts = {
-                "format": "best[ext=mp4]/best",  # Preferir MP4
-                "outtmpl": os.path.join(output_path, "%(title)s.%(ext)s"),
-                "progress_hooks": [self.progress_hook],
-                "postprocessors": [{
-                    "key": "FFmpegVideoConvertor",
-                    "preferedformat": "mp4",
-                }],
-                "postprocessor_args": [
-                    "-c:v", "libx264",  # Codec de vídeo
-                    "-c:a", "aac",      # Codec de áudio AAC
-                    "-b:a", "128k",     # Bitrate do áudio
-                ],
+            config = {
+                'downloads_path': str(self.downloads_path),
+                'history': self.download_history[-50:]
             }
-            
-            # Ajustar qualidade se especificada
-            quality = self.quality_var.get()
-            if quality == "Melhor":
-                ydl_opts["format"] = "best[ext=mp4]/best"
-            elif quality == "Pior":
-                ydl_opts["format"] = "worst[ext=mp4]/worst"
-            elif quality.endswith("p"):
-                height = quality[:-1]
-                ydl_opts["format"] = f"best[height<={height}][ext=mp4]/best[height<={height}]/best[ext=mp4]/best"
-                
-            self.update_status("Obtendo informações do vídeo...")
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Obter informações do vídeo
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logging.exception("Erro ao salvar configurações: %s", e)
+            QMessageBox.critical(self, "Erro", f"Erro ao salvar configurações: {e}")
+
+    def _update_status_ui(self, message, progress=None):
+        self.status_label.setText(message)
+        if progress is not None:
+            self.progress_bar.setValue(progress)
+
+    def _update_log_text(self, text):
+        self.log_text.append(text.strip())
+        # QTextEdit scrolls automatically to the end when append is used
+
+    def _show_error_dialog(self, title, message):
+        QMessageBox.critical(self, title, message)
+
+    def _show_info_dialog(self, title, message):
+        QMessageBox.information(self, title, message)
+
+    def _update_video_info_label(self, info_text):
+        self.status_label.setText(info_text)
+
+    def log_message(self, message):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.signals.log_message.emit(f"[{timestamp}] {message}")
+
+    def update_status(self, message, progress=None):
+        self.signals.update_status.emit(message, progress)
+
+    def _get_video_info_background(self, url):
+        try:
+            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
                 info = ydl.extract_info(url, download=False)
-                title = info.get("title", "Vídeo sem título")
-                duration = info.get("duration", 0)
-                
-                self.log_message(f"Título: {title}")
+                title = info.get('title', 'Título não disponível')
+                duration = info.get('duration', 0)
+                uploader = info.get('uploader', 'Canal não disponível')
+                view_count = info.get('view_count', 0)
+
                 if duration:
                     minutes = duration // 60
                     seconds = duration % 60
-                    self.log_message(f"Duração: {minutes:02d}:{seconds:02d}")
-                
-                # Fazer o download
-                self.update_status("Baixando vídeo...")
-                ydl.download([url])
-                
+                    duration_str = f"{minutes:02d}:{seconds:02d}"
+                else:
+                    duration_str = "Duração não disponível"
+
+                info_text = f"Título: {title}\nCanal: {uploader}\nDuração: {duration_str}\nVisualizações: {view_count:,}"
+                self.signals.video_info_updated.emit(info_text)
+                self.signals.update_status.emit("Informações obtidas", self.progress_bar.value())
+
         except Exception as e:
-            self.log_message(f"Erro durante o download: {str(e)}")
-            self.update_status("Erro no download", "red")
-            messagebox.showerror("Erro", f"Falha no download:\n{str(e)}")
+            tb = traceback.format_exc()
+            logging.exception("Erro ao obter informações do vídeo: %s", e)
+            self.signals.error_dialog.emit("Erro", f"Erro ao obter informações: {str(e)}\n{tb}")
+            self.signals.update_status.emit("Erro ao obter informações", self.progress_bar.value())
+
+    def paste_url(self):
+        try:
+            import pyperclip
+            clipboard_content = pyperclip.paste()
+            self.url_input.setText(clipboard_content)
+            self.log_message("URL colada da área de transferência")
+        except ImportError:
+            self.signals.info_dialog.emit("Erro", "pyperclip não instalado")
+        except Exception as e:
+            self.signals.error_dialog.emit("Erro", f"Erro ao colar: {str(e)}")
+
+        self.update_status("Obtendo informações...")
+        # Inicia a busca de informações em segundo plano
+        threading.Thread(target=self._get_video_info_background, args=(self.url_input.text().strip(),)).start()
+
+    def browse_folder(self):
+        try:
+            folder_path = QFileDialog.getExistingDirectory(
+                self,
+                "Escolher pasta de destino",
+                self.folder_input.text()
+            )
+            if folder_path:
+                self.folder_input.setText(folder_path)
+                self.log_message(f"Pasta selecionada: {folder_path}")
+        except Exception as e:
+            self.signals.error_dialog.emit("Erro", f"Erro ao selecionar pasta: {str(e)}")
+
+    def clear_log(self):
+        self.log_text.setPlainText("Log limpo.\n")
+
+    def open_downloads_folder(self):
+        folder_path = self.folder_input.text()
+        try:
+            if sys.platform == "win32":
+                os.startfile(folder_path)
+            elif sys.platform == "darwin":  # macOS
+                os.system(f"open \"{folder_path}\"")
+            else:  # Linux
+                os.system(f"xdg-open \"{folder_path}\"")
+            self.log_message(f"Pasta aberta: {folder_path}")
+        except Exception as e:
+            self.signals.error_dialog.emit("Erro", f"Erro ao abrir pasta: {str(e)}")
+
+    def show_about(self):
+        about_text = """YouTube Downloader Pro - Qt Edition\n\nVersão: 2.0\nDesenvolvido com: Python + PySide6 + yt-dlp\n\nFuncionalidades:\n• Download de vídeos em MP4/MKV\n• Download de áudio em MP3/M4A\n• Múltiplas qualidades\n• Interface nativa multiplataforma\n• Log detalhado de operações\n• Histórico de downloads\n\nBibliotecas utilizadas:\n• PySide6 - Interface gráfica nativa\n• yt-dlp - Download de vídeos\n• FFmpeg - Processamento de mídia"""
+        self.signals.info_dialog.emit("Sobre", about_text)
+
+    def show_config(self):
+        config_text = f"""Configurações Atuais:\n\nPasta de downloads: {self.downloads_path}\nTotal de downloads no histórico: {len(self.download_history)}\n\nPara alterar as configurações, use os campos da interface principal."""
+        self.signals.info_dialog.emit("Configurações", config_text)
+
+    def show_history(self):
+        if not self.download_history:
+            self.signals.info_dialog.emit("Histórico", "Nenhum download realizado ainda.")
+            return
+
+        history_text = "Histórico de Downloads:\n\n"
+        for item in reversed(self.download_history[-10:]):
+            history_text += f"[{item['date']}] {item['title']} - {item['format']}\n"
+
+        self.signals.info_dialog.emit("Histórico", history_text)
+
+    def add_to_history(self, title, format_type):
+        item = {
+            'date': datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'title': title,
+            'format': format_type
+        }
+        self.download_history.append(item)
+        self.save_config()
+
+    def start_download(self):
+        if self.download_thread and self.download_thread.is_alive():
+            self.signals.error_dialog.emit("Erro", "Um download ainda está em andamento")
+            return
+
+        url = self.url_input.text().strip()
+        if not url:
+            self.signals.error_dialog.emit("Erro", "Por favor, insira uma URL do YouTube")
+            return
+
+        if self.is_downloading:
+            self.signals.error_dialog.emit("Erro", "Download já em andamento")
+            return
+
+        self.download_btn.setEnabled(False)
+        self.download_btn.setText("Baixando...")
+        self.cancel_btn.setEnabled(True)
+        self.is_downloading = True
+        self.progress_bar.setValue(0)
+
+        # Iniciar o download em uma thread separada
+        self.cancel_event.clear()
+        self.download_thread = threading.Thread(target=self._do_download, args=(url,))
+        self.download_thread.start()
+
+    def cancel_download(self):
+        if self.is_downloading:
+            self.cancel_event.set()
+            self.log_message("Solicitação de cancelamento enviada.")
+            self.update_status("Cancelando download...")
+
+    def _do_download(self, url):
+        # Esta função roda em uma thread separada
+        try:
+            self.log_message(f"Iniciando download de: {url}")
+            self.update_status("Iniciando download...", 0)
+
+            ydl_opts = {
+                'format': 'bestvideo+bestaudio/best',
+                'outtmpl': str(self.downloads_path / '%(title)s.%(ext)s'),
+                'progress_hooks': [self._download_progress_hook],
+                'merge_output_format': 'mkv',
+                'postprocessors': [],
+            }
+
+            download_type = self.download_type_selection.currentText()
+            quality = self.quality_selection.currentText()
+
+            if download_type == "Áudio (MP3)":
+                ydl_opts['format'] = 'bestaudio/best'
+                ydl_opts['postprocessors'].append({
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                })
+            elif download_type == "Áudio (M4A)":
+                ydl_opts['format'] = 'bestaudio/best'
+                ydl_opts['postprocessors'].append({
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'm4a',
+                })
+            elif download_type == "Vídeo (MP4)":
+                ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+                ydl_opts['merge_output_format'] = 'mp4'
+            elif download_type == "Vídeo + Áudio (MKV)":
+                ydl_opts['format'] = 'bestvideo+bestaudio/best'
+                ydl_opts['merge_output_format'] = 'mkv'
+
+            if quality != "Melhor" and quality != "Pior":
+                if download_type.startswith("Vídeo"):
+                    ydl_opts['format'] = f'bestvideo[height={quality[:-1]}]+bestaudio/best[height={quality[:-1]}]'
+                # Para áudio, qualidade não se aplica da mesma forma via yt-dlp format string
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                title = info.get('title', 'unknown_title')
+                
+                if self.cancel_event.is_set():
+                    self.log_message("Download cancelado pelo usuário.")
+                    self.update_status("Download cancelado.", 0)
+                    return
+
+                ydl.download([url])
+
+            self.log_message(f"Download concluído: {title}")
+            self.update_status("Download concluído!", 100)
+            self.add_to_history(title, download_type)
+
+        except yt_dlp.DownloadError as e:
+            error_msg = f"Erro no download: {e}"
+            logging.exception(error_msg)
+            self.signals.error_dialog.emit("Erro de Download", error_msg)
+            self.update_status("Erro no download.", 0)
+        except Exception as e:
+            tb = traceback.format_exc()
+            error_msg = f"Ocorreu um erro inesperado: {e}"
+            logging.exception(error_msg)
+            self.signals.error_dialog.emit("Erro", f"{error_msg}\n{tb}")
+            self.signals.update_status.emit("Erro inesperado.", 0)
         finally:
-            # Reabilitar botão
-            self.download_btn.configure(state="normal")
-            
-def main():
-    root = tk.Tk()
-    app = YouTubeDownloader(root)
-    root.mainloop()
+            self.is_downloading = False
+            self.signals.update_status.emit("Pronto para download", 0)
+            self.download_btn.setEnabled(True)
+            self.download_btn.setText("Baixando")
+            self.cancel_btn.setEnabled(False)
+            self.cancel_event.clear()
+
+    def _download_progress_hook(self, d):
+        if self.cancel_event.is_set():
+            raise yt_dlp.DownloadError("Download cancelado pelo usuário")
+
+        if d['status'] == 'downloading':
+            total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
+            downloaded_bytes = d.get('downloaded_bytes')
+            if total_bytes and downloaded_bytes:
+                progress = int(downloaded_bytes / total_bytes * 100)
+                self.signals.update_status.emit(f"Baixando: {d['_percent_str']} de {d['_total_bytes_str']} @ {d['_speed_str']}", progress)
+            else:
+                self.signals.update_status.emit(f"Baixando: {d['_percent_str']} @ {d['_speed_str']}", self.progress_bar.value())
+        elif d['status'] == 'finished':
+            self.signals.update_status.emit("Processando...", 100)
+            self.log_message(f"Concluído: {d['filename']}")
+        elif d['status'] == 'error':
+            self.signals.update_status.emit("Erro no download.", 0)
+            self.log_message(f"Erro: {d['filename']}")
+
 
 if __name__ == "__main__":
-    main()
+    app = QApplication(sys.argv)
+    window = YouTubeDownloaderQt()
+    window.show()
+    sys.exit(app.exec())
 
