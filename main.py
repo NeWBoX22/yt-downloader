@@ -1,4 +1,4 @@
-
+import logging
 import sys
 import asyncio
 import os
@@ -18,9 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QObject
 from PySide6.QtGui import QFont, QIcon
 
-import logging
-logging.basicConfig(filename='debug_qt.log', level=logging.DEBUG, filemode='w',
-                    format='%(asctime)s %(levelname)s %(message)s')
+
 
 class WorkerSignals(QObject):
     # Define signals for communication from worker thread to main thread
@@ -33,6 +31,10 @@ class WorkerSignals(QObject):
 class YouTubeDownloaderQt(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.app_data_path = self.get_app_data_path()
+        log_file_path = self.app_data_path / 'debug_qt.log'
+        logging.basicConfig(filename=log_file_path, level=logging.DEBUG, filemode='w',
+                            format='%(asctime)s %(levelname)s %(message)s')
         self.setWindowTitle("YouTube Downloader")
         try:
             icon_path = self.get_asset_path('icon.ico')
@@ -42,7 +44,7 @@ class YouTubeDownloaderQt(QMainWindow):
             logging.error(f"Erro ao carregar ícone: {e}")
         self.downloads_path = Path("downloads")
         self.downloads_path.mkdir(exist_ok=True)
-        self.config_file = Path("downloader_config.json")
+        self.config_file = self.app_data_path / "downloader_config.json"
         self.download_history = []
         self.is_downloading = False
         self.download_thread = None
@@ -234,6 +236,21 @@ class YouTubeDownloaderQt(QMainWindow):
         
         return os.path.join(base_path, 'assets', asset_name)
 
+    def get_app_data_path(self):
+        """
+        Retorna o caminho para a pasta de dados do aplicativo.
+        Usa AppData em modo 'congelado' e o diretório local em desenvolvimento.
+        """
+        if getattr(sys, 'frozen', False):
+            # Em modo 'congelado', usa a pasta AppData/Roaming
+            app_data_dir = Path(os.getenv('APPDATA')) / "YTDownloader"
+        else:
+            # Em modo de desenvolvimento, usa a pasta local
+            app_data_dir = Path('.')
+        
+        # Cria a pasta se ela não existir
+        app_data_dir.mkdir(exist_ok=True)
+        return app_data_dir
 
     def load_config(self):
         try:
