@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QObject
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 
 import logging
 logging.basicConfig(filename='debug_qt.log', level=logging.DEBUG, filemode='w',
@@ -34,6 +34,12 @@ class YouTubeDownloaderQt(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("YouTube Downloader")
+        try:
+            icon_path = self.get_asset_path('icon.ico')
+            if os.path.exists(icon_path):
+                self.setWindowIcon(QIcon(icon_path))
+        except Exception as e:
+            logging.error(f"Erro ao carregar ícone: {e}")
         self.downloads_path = Path("downloads")
         self.downloads_path.mkdir(exist_ok=True)
         self.config_file = Path("downloader_config.json")
@@ -213,6 +219,20 @@ class YouTubeDownloaderQt(QMainWindow):
         
         # Em modo de desenvolvimento, assume que 'ffmpeg' está no PATH do sistema
         return 'ffmpeg'
+
+    def get_asset_path(self, asset_name):
+        """
+        Retorna o caminho completo para um recurso (asset), como um ícone,
+        lidando com o ambiente de desenvolvimento e o empacotado.
+        """
+        if getattr(sys, 'frozen', False):
+            # Caminho quando executando como .exe
+            base_path = sys._MEIPASS
+        else:
+            # Caminho em modo de desenvolvimento
+            base_path = os.path.abspath(".")
+        
+        return os.path.join(base_path, 'assets', asset_name)
 
 
     def load_config(self):
