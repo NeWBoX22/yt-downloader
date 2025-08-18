@@ -199,6 +199,22 @@ class YouTubeDownloaderQt(QMainWindow):
         self.update_quality_options()
         main_layout.addLayout(extra_buttons_box)
 
+    def get_ffmpeg_path(self):
+        """
+        Determina o caminho para o executável do FFmpeg, que se espera
+        estar em uma subpasta 'bin' quando empacotado.
+        """
+        if getattr(sys, 'frozen', False):
+            # Se o aplicativo estiver 'congelado' (rodando como .exe)
+            application_path = os.path.dirname(sys.executable)
+            # Constrói o caminho para a subpasta 'bin'
+            ffmpeg_path = os.path.join(application_path, 'bin', 'ffmpeg.exe') # <--- Linha modificada
+            return ffmpeg_path
+        
+        # Em modo de desenvolvimento, assume que 'ffmpeg' está no PATH do sistema
+        return 'ffmpeg'
+
+
     def load_config(self):
         try:
             if self.config_file.exists():
@@ -395,13 +411,18 @@ class YouTubeDownloaderQt(QMainWindow):
             self.log_message(f"Iniciando download de: {url}")
             self.update_status("Iniciando download...", 0)
 
+            # Determina o caminho do FFmpeg e o passa para o yt-dlp
+            ffmpeg_path = self.get_ffmpeg_path()
+
             ydl_opts = {
                 'format': 'bestvideo+bestaudio/best',
                 'outtmpl': str(self.downloads_path / '%(title)s.%(ext)s'),
                 'progress_hooks': [self._download_progress_hook],
                 'merge_output_format': 'mkv',
                 'postprocessors': [],
+                'ffmpeg_location': ffmpeg_path  # <--- LINHA ADICIONADA
             }
+
 
             # ESTE É O NOVO BLOCO DE CÓDIGO PARA INSERIR NO LUGAR DO ANTIGO
 
