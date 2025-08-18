@@ -33,7 +33,7 @@ class WorkerSignals(QObject):
 class YouTubeDownloaderQt(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("YouTube Downloader Pro - Qt Edition")
+        self.setWindowTitle("YouTube Downloader")
         self.downloads_path = Path("downloads")
         self.downloads_path.mkdir(exist_ok=True)
         self.config_file = Path("downloader_config.json")
@@ -58,7 +58,7 @@ class YouTubeDownloaderQt(QMainWindow):
         main_layout = QVBoxLayout(central_widget)
 
         # Título
-        title_label = QLabel("YouTube Downloader Pro - Qt Edition")
+        title_label = QLabel("YouTube Downloader")
         title_label.setAlignment(Qt.AlignCenter)
         title_font = QFont()
         title_font.setPointSize(18)
@@ -177,13 +177,13 @@ class YouTubeDownloaderQt(QMainWindow):
         about_btn = QPushButton("Sobre")
         about_btn.clicked.connect(self.show_about)
 
-        config_btn = QPushButton("Configurações")
-        config_btn.clicked.connect(self.show_config)
+        #config_btn = QPushButton("Configurações")
+        #config_btn.clicked.connect(self.show_config)
 
         extra_buttons_box.addWidget(clear_log_btn)
         extra_buttons_box.addWidget(open_folder_btn)
         extra_buttons_box.addWidget(about_btn)
-        extra_buttons_box.addWidget(config_btn)
+        # extra_buttons_box.addWidget(config_btn) Temporariamente desativado
         main_layout.addLayout(extra_buttons_box)
 
     def load_config(self):
@@ -305,7 +305,7 @@ class YouTubeDownloaderQt(QMainWindow):
             self.signals.error_dialog.emit("Erro", f"Erro ao abrir pasta: {str(e)}")
 
     def show_about(self):
-        about_text = """YouTube Downloader Pro - Qt Edition\n\nVersão: 2.0\nDesenvolvido com: Python + PySide6 + yt-dlp\n\nFuncionalidades:\n• Download de vídeos em MP4/MKV\n• Download de áudio em MP3/M4A\n• Múltiplas qualidades\n• Interface nativa multiplataforma\n• Log detalhado de operações\n• Histórico de downloads\n\nBibliotecas utilizadas:\n• PySide6 - Interface gráfica nativa\n• yt-dlp - Download de vídeos\n• FFmpeg - Processamento de mídia"""
+        about_text = """YouTube Downloader\n\nVersão: Alpha\nDesenvolvido com: Python + PySide6 + yt-dlp\n\nFuncionalidades:\n• Download de vídeos em MP4/MKV\n• Download de áudio em MP3/M4A\n• Múltiplas qualidades\n• Interface nativa multiplataforma\n• Log detalhado de operações\n• Histórico de downloads\n\nBibliotecas utilizadas:\n• PySide6 - Interface gráfica nativa\n• yt-dlp - Download de vídeos\n• FFmpeg - Processamento de mídia"""
         self.signals.info_dialog.emit("Sobre", about_text)
 
     def show_config(self):
