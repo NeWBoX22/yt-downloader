@@ -105,6 +105,7 @@ class YouTubeDownloaderQt(QMainWindow):
         self.download_type_selection.addItems(["Vídeo (MP4)", "Áudio (MP3)", "Áudio (M4A)", "Vídeo + Áudio (MKV)"])
         self.download_type_selection.setCurrentText("Vídeo (MP4)")
         self.download_type_selection.setFixedWidth(150)
+        self.download_type_selection.currentIndexChanged.connect(self.update_quality_options)
 
         quality_label = QLabel("Qualidade:")
         quality_label.setFixedWidth(80)
@@ -184,6 +185,7 @@ class YouTubeDownloaderQt(QMainWindow):
         extra_buttons_box.addWidget(open_folder_btn)
         extra_buttons_box.addWidget(about_btn)
         # extra_buttons_box.addWidget(config_btn) Temporariamente desativado
+        self.update_quality_options()
         main_layout.addLayout(extra_buttons_box)
 
     def load_config(self):
@@ -332,6 +334,19 @@ class YouTubeDownloaderQt(QMainWindow):
         self.download_history.append(item)
         self.save_config()
 
+    def update_quality_options(self):
+        download_type = self.download_type_selection.currentText()
+        self.quality_selection.clear() # Limpa as opções atuais
+
+        if "Vídeo" in download_type:
+            # Opções para formatos de vídeo
+            self.quality_selection.addItems(["Melhor", "Pior", "1080p", "720p", "480p", "360p", "240p"])
+            self.quality_selection.setCurrentText("720p")
+        elif "Áudio" in download_type:
+            # Opções para formatos de áudio (bitrate)
+            self.quality_selection.addItems(["Melhor (320k)", "Padrão (192k)", "Boa (128k)", "Pior (64k)"])
+            self.quality_selection.setCurrentText("Padrão (192k)")
+
     def start_download(self):
         if self.download_thread and self.download_thread.is_alive():
             self.signals.error_dialog.emit("Erro", "Um download ainda está em andamento")
@@ -377,15 +392,19 @@ class YouTubeDownloaderQt(QMainWindow):
                 'postprocessors': [],
             }
 
+            # ESTE É O NOVO BLOCO DE CÓDIGO PARA INSERIR NO LUGAR DO ANTIGO
+
             download_type = self.download_type_selection.currentText()
             quality = self.quality_selection.currentText()
 
             if download_type == "Áudio (MP3)":
                 ydl_opts['format'] = 'bestaudio/best'
+                # Extrai o bitrate da string de qualidade, ex: "Padrão (192k)" -> "192"
+                audio_bitrate = quality.split('(')[-1].replace('k)', '') if '(' in quality else '192'
                 ydl_opts['postprocessors'].append({
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
-                    'preferredquality': '192',
+                    'preferredquality': audio_bitrate,
                 })
             elif download_type == "Áudio (M4A)":
                 ydl_opts['format'] = 'bestaudio/best'
@@ -400,10 +419,13 @@ class YouTubeDownloaderQt(QMainWindow):
                 ydl_opts['format'] = 'bestvideo+bestaudio/best'
                 ydl_opts['merge_output_format'] = 'mkv'
 
-            if quality != "Melhor" and quality != "Pior":
+            if quality not in ["Melhor", "Pior"] and "k)" not in quality: # Garante que só se aplica a vídeo
                 if download_type.startswith("Vídeo"):
-                    ydl_opts['format'] = f'bestvideo[height={quality[:-1]}]+bestaudio/best[height={quality[:-1]}]'
-                # Para áudio, qualidade não se aplica da mesma forma via yt-dlp format string
+                    # A lógica para vídeo permanece a mesma, com a melhoria do <=
+                    resolution = quality.replace('p', '')
+                    ydl_opts['format'] = f'bestvideo[height<={resolution}]+bestaudio/best[height<={resolution}]'
+                # Não é necessário um 'else' aqui, pois a qualidade do áudio já foi tratada acima
+
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
