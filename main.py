@@ -177,13 +177,13 @@ class YouTubeDownloaderQt(QMainWindow):
         about_btn = QPushButton("Sobre")
         about_btn.clicked.connect(self.show_about)
 
-        config_btn = QPushButton("Configurações")
-        config_btn.clicked.connect(self.show_config)
+        #config_btn = QPushButton("Configurações")
+        #config_btn.clicked.connect(self.show_config)
 
         extra_buttons_box.addWidget(clear_log_btn)
         extra_buttons_box.addWidget(open_folder_btn)
         extra_buttons_box.addWidget(about_btn)
-        extra_buttons_box.addWidget(config_btn)
+        # extra_buttons_box.addWidget(config_btn) Temporariamente desativado
         main_layout.addLayout(extra_buttons_box)
 
     def load_config(self):
