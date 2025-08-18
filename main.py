@@ -129,8 +129,19 @@ class YouTubeDownloaderQt(QMainWindow):
         self.download_btn.clicked.connect(self.start_download)
 
         self.cancel_btn = QPushButton("Cancelar")
-        self.cancel_btn.setStyleSheet("background-color: #f44336; color: white;")
-        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 5px;
+            }
+            QPushButton:disabled {
+                background-color: #a4322a;
+                color: #c0c0c0;
+            }
+        """)
+        self.cancel_btn.setEnabled(False) # Mantemos isso para garantir o estado inicial
         self.cancel_btn.clicked.connect(self.cancel_download)
 
         history_btn = QPushButton("Histórico")
