@@ -76,5 +76,7 @@ python main.py
    Contribuições são muito bem-vindas! Se você tiver ideias para novas funcionalidades, melhorias de código, ou encontrar algum bug, sinta-se à vontade para abrir uma Issue ou criar um Pull Request.
 
 ## Licença
-   Este projeto está licenciado sob a Licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
-   Desenvolvido com ❤️ por NeWBoX22
+  - Este projeto está licenciado sob a Licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+---
+
+Desenvolvido com ❤️ por NeWBoX22
