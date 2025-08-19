@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QObject
 from PySide6.QtGui import QFont, QIcon
 
-
+import glob  # Adicionar esta linha aos imports no topo
 
 class WorkerSignals(QObject):
     # Define signals for communication from worker thread to main thread
@@ -59,6 +59,73 @@ class YouTubeDownloaderQt(QMainWindow):
         self.signals.video_info_updated.connect(self._update_video_info_label)
 
         self.init_ui()
+
+    def set_file_modification_time(self, filepath):
+        """
+        Define a data de modificação de um arquivo para o horário atual.
+        Usa uma abordagem robusta para garantir que o Windows reconheça a mudança.
+        """
+        try:
+            now = time.time()
+            # Primeira tentativa: definir timestamp
+            os.utime(filepath, (now, now))
+            
+            # Segunda tentativa: forçar o Windows a reconhecer a mudança
+            # através de uma renomeação temporária
+            temp_path = str(filepath) + ".temp"
+            os.rename(filepath, temp_path)
+            time.sleep(0.1)  # Pequena pausa
+            os.rename(temp_path, filepath)
+            
+            # Terceira tentativa: definir timestamp novamente
+            os.utime(filepath, (now, now))
+            
+            self.log_message(f"Timestamp do arquivo '{Path(filepath).name}' atualizado.")
+        except Exception as e:
+            self.log_message(f"AVISO: Falha ao atualizar o timestamp do arquivo: {e}")
+            logging.warning(f"Não foi possível atualizar o timestamp para {filepath}: {e}")
+
+    def find_downloaded_file(self, title, download_type):
+        """
+        Encontra o arquivo baixado baseado no título e tipo de download.
+        """
+        try:
+            # Limpa o título para corresponder ao que o yt-dlp usa
+            safe_title = title.replace('/', '_').replace('\\', '_').replace(':', '_')
+            
+            # Define as extensões possíveis baseadas no tipo de download
+            if download_type == "Áudio (MP3)":
+                extensions = ["*.mp3"]
+            elif download_type == "Áudio (M4A)":
+                extensions = ["*.m4a"]
+            elif download_type == "Vídeo (MP4)":
+                extensions = ["*.mp4"]
+            elif download_type == "Vídeo + Áudio (MKV)":
+                extensions = ["*.mkv"]
+            else:
+                extensions = ["*.mp4", "*.mkv", "*.mp3", "*.m4a"]
+            
+            # Procura por arquivos que correspondam ao padrão
+            for ext in extensions:
+                pattern = str(self.downloads_path / f"*{safe_title}*{ext}")
+                matches = glob.glob(pattern)
+                if matches:
+                    return max(matches, key=os.path.getctime)
+            
+            # Fallback: procura pelo arquivo mais recente
+            for ext in extensions:
+                pattern = str(self.downloads_path / ext)
+                matches = glob.glob(pattern)
+                if matches:
+                    most_recent = max(matches, key=os.path.getctime)
+                    if time.time() - os.path.getctime(most_recent) < 300:  # 5 minutos
+                        return most_recent
+            
+            return None
+            
+        except Exception as e:
+            self.log_message(f"Erro ao procurar arquivo baixado: {e}")
+            return None
 
     def init_ui(self):
         central_widget = QWidget()
@@ -207,6 +274,20 @@ class YouTubeDownloaderQt(QMainWindow):
         self.update_quality_options()
         main_layout.addLayout(extra_buttons_box)
 
+    def _postprocessor_hook(self, d):
+            """
+            Hook chamado após o pós-processamento ser concluído.
+            Captura o caminho do arquivo final e atualiza seu timestamp.
+            """
+            # O status 'finished' aqui se refere ao pós-processamento
+            if d['status'] == 'finished' and 'filepath' in d:
+                final_filepath = d['filepath']
+                self.log_message(f"Pós-processamento concluído. Arquivo final: {final_filepath}")
+                if os.path.exists(final_filepath):
+                    self.set_file_modification_time(final_filepath)
+                else:
+                    self.log_message(f"AVISO: Pós-processador indicou arquivo final que não existe: {final_filepath}")
+
     def get_ffmpeg_path(self):
         """
         Determina o caminho para o executável do FFmpeg, que se espera
@@ -255,6 +336,19 @@ class YouTubeDownloaderQt(QMainWindow):
         # Cria a pasta se ela não existir
         app_data_dir.mkdir(exist_ok=True)
         return app_data_dir
+
+    def set_file_modification_time(self, filepath):
+        """
+        Define a data de modificação de um arquivo para o horário atual.
+        """
+        try:
+            now = time.time()
+            os.utime(filepath, (now, now))
+            self.log_message(f"Timestamp do arquivo '{Path(filepath).name}' atualizado.")
+        except Exception as e:
+            self.log_message(f"AVISO: Falha ao atualizar o timestamp do arquivo: {e}")
+            logging.warning(f"Não foi possível atualizar o timestamp para {filepath}: {e}")
+
 
     def load_config(self):
         try:
@@ -476,15 +570,16 @@ class YouTubeDownloaderQt(QMainWindow):
 
             ydl_opts = {
                 'format': 'bestvideo+bestaudio/best',
-                'outtmpl': str(self.downloads_path / '%(title)s.%(ext)s'),
+                'outtmpl': {
+                    'default': str(self.downloads_path / '%(title)s.%(ext)s')
+                },
                 'progress_hooks': [self._download_progress_hook],
+                'postprocessor_hooks': [self._postprocessor_hook],
                 'merge_output_format': 'mkv',
                 'postprocessors': [],
-                'ffmpeg_location': ffmpeg_path  # <--- LINHA ADICIONADA
+                'ffmpeg_location': ffmpeg_path,
+                'no_mtime': True
             }
-
-
-            # ESTE É O NOVO BLOCO DE CÓDIGO PARA INSERIR NO LUGAR DO ANTIGO
 
             download_type = self.download_type_selection.currentText()
             quality = self.quality_selection.currentText()
@@ -522,13 +617,24 @@ class YouTubeDownloaderQt(QMainWindow):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 title = info.get('title', 'unknown_title')
-                
+            
                 if self.cancel_event.is_set():
                     self.log_message("Download cancelado pelo usuário.")
                     self.update_status("Download cancelado.", 0)
                     return
 
+                # O download acontece e os hooks são chamados automaticamente
                 ydl.download([url])
+
+                # SOLUÇÃO DEFINITIVA: Procura e atualiza o timestamp do arquivo baixado
+                self.log_message("Procurando arquivo baixado para atualizar timestamp...")
+                downloaded_file = self.find_downloaded_file(title, download_type)
+
+                if downloaded_file and os.path.exists(downloaded_file):
+                    self.log_message(f"Arquivo encontrado: {Path(downloaded_file).name}")
+                    self.set_file_modification_time(downloaded_file)
+                else:
+                    self.log_message("AVISO: Não foi possível localizar o arquivo baixado para atualizar o timestamp.")
 
             self.log_message(f"Download concluído: {title}")
             self.update_status("Download concluído!", 100)
@@ -575,6 +681,7 @@ class YouTubeDownloaderQt(QMainWindow):
 
 if __name__ == "__main__":
     # --- Bloco de Simulação para Testes ---
+    # Defina como True para simular o modo .exe, ou False para rodar normalmente.
     FORCE_FROZEN_MODE = True 
 
     if FORCE_FROZEN_MODE:
