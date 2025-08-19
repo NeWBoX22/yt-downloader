@@ -1,4 +1,4 @@
-<h2 align="center">YouTube Downloader</h2>
+<h1 align="center">YouTube Downloader</h2>
 
 <div align="center">
 
