@@ -1,4 +1,5 @@
-# YouTube Downloader
+<h2 align="center">YouTube Downloader</h2>
+
 <div align="center">
 
 ![GitHub Release](https://img.shields.io/github/v/release/NeWBoX22/yt-downloader)
@@ -10,8 +11,6 @@
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 
 </div>
-
-
 
 ## Visão Geral
 
