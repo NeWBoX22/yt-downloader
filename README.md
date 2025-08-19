@@ -7,7 +7,7 @@
 
 O **YouTube Downloader** é um aplicativo de desktop robusto e fácil de usar que permite baixar vídeos e áudios do YouTube e de outras plataformas diretamente para o seu computador. Com uma interface gráfica nativa e intuitiva, este software oferece uma experiência fluida e eficiente, com opções de formato e qualidade personalizáveis.
 
-## ✨ Funcionalidades Principais
+##  Funcionalidades Principais
 
 - **Download Versátil**: Baixe vídeos em formatos populares como MP4 e MKV, ou extraia apenas o áudio em MP3 e M4A.
 - **Seleção de Qualidade Dinâmica**: Escolha entre diversas opções de qualidade de vídeo (1080p, 720p, etc.) e áudio (320k, 192k, etc.), ou deixe o aplicativo selecionar a melhor qualidade disponível.
@@ -28,7 +28,7 @@ A maneira mais fácil de usar o aplicativo, sem precisar instalar nada.
 
 ---
 
-## 👨‍💻 Para Desenvolvedores: Rodando a Partir do Código-Fonte
+##  Para Desenvolvedores: Rodando a Partir do Código-Fonte
 
 Se você deseja executar o projeto a partir do código-fonte para contribuir ou fazer modificações, siga os passos abaixo.
 
