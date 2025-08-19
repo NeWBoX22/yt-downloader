@@ -574,8 +574,19 @@ class YouTubeDownloaderQt(QMainWindow):
 
 
 if __name__ == "__main__":
+    # --- Bloco de Simulação para Testes ---
+    # Defina como True para simular o modo .exe, ou False para rodar normalmente.
+    FORCE_FROZEN_MODE = False 
+
+    if FORCE_FROZEN_MODE:
+        print("--- ATENÇÃO: Rodando em modo de simulação 'congelado' (frozen) ---")
+        setattr(sys, 'frozen', True)
+        # Para get_asset_path funcionar, precisamos simular sys._MEIPASS também.
+        # Ele deve apontar para a pasta raiz do seu projeto.
+        setattr(sys, '_MEIPASS', os.path.abspath("."))
+    # --- Fim do Bloco de Simulação ---
+
     app = QApplication(sys.argv)
     window = YouTubeDownloaderQt()
     window.show()
     sys.exit(app.exec())
-
