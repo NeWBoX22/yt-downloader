@@ -222,6 +222,10 @@ class YouTubeDownloaderQt(QMainWindow):
         # Em modo de desenvolvimento, assume que 'ffmpeg' está no PATH do sistema
         return 'ffmpeg'
 
+    def get_default_downloads_path(self):
+        """Retorna o caminho para a pasta de Downloads padrão do usuário."""
+        return Path.home() / "Downloads"
+
     def get_asset_path(self, asset_name):
         """
         Retorna o caminho completo para um recurso (asset), como um ícone,
@@ -257,10 +261,24 @@ class YouTubeDownloaderQt(QMainWindow):
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    self.downloads_path = Path(config.get('downloads_path', 'downloads'))
+                    
+                    # Pega o caminho salvo. Se não existir, usa o padrão do sistema.
+                    saved_path_str = config.get('downloads_path')
+                    if saved_path_str:
+                        self.downloads_path = Path(saved_path_str)
+                    else:
+                        # Se não houver caminho salvo, usa o padrão do Windows/macOS/Linux
+                        self.downloads_path = self.get_default_downloads_path()
+
                     self.download_history = config.get('history', [])
+            else:
+                # Se o arquivo de config nem existe, garante que o padrão do sistema seja usado.
+                self.downloads_path = self.get_default_downloads_path()
+
         except Exception as e:
             logging.exception("Erro ao carregar configurações: %s", e)
+            # Em caso de erro, também recorre ao caminho padrão seguro.
+            self.downloads_path = self.get_default_downloads_path()
             QMessageBox.critical(self, "Erro", f"Erro ao carregar configurações: {e}")
 
     def save_config(self):
@@ -351,6 +369,11 @@ class YouTubeDownloaderQt(QMainWindow):
             if folder_path:
                 self.folder_input.setText(folder_path)
                 self.log_message(f"Pasta selecionada: {folder_path}")
+                # Atualiza o atributo da classe com o novo caminho
+                self.downloads_path = Path(folder_path)
+                # Salva a nova configuração
+                self.save_config()
+
         except Exception as e:
             self.signals.error_dialog.emit("Erro", f"Erro ao selecionar pasta: {str(e)}")
 
