@@ -641,10 +641,19 @@ class YouTubeDownloaderQt(QMainWindow):
             self.add_to_history(title, download_type)
 
         except yt_dlp.DownloadError as e:
-            error_msg = f"Erro no download: {e}"
-            logging.exception(error_msg)
-            self.signals.error_dialog.emit("Erro de Download", error_msg)
-            self.update_status("Erro no download.", 0)
+            # Verifica se o erro foi, na verdade, um cancelamento do usuário
+            if "Download cancelado pelo usuário" in str(e):
+            # Se foi um cancelamento, não mostre um diálogo de erro.
+            # Apenas registre no log e atualize o status.
+                self.log_message("Download foi cancelado pelo usuário.")
+                self.update_status("Download cancelado.", 0)
+            else:
+            # Se for qualquer outro erro de download, mostre o diálogo.
+                error_msg = f"Erro no download: {e}"
+                logging.exception(error_msg)
+                self.signals.error_dialog.emit("Erro de Download", error_msg)
+                self.update_status("Erro no download.", 0)
+
         except Exception as e:
             tb = traceback.format_exc()
             error_msg = f"Ocorreu um erro inesperado: {e}"
