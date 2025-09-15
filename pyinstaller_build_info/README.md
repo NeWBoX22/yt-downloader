@@ -7,7 +7,7 @@ Este diretório contém o comando PyInstaller para compilar o aplicativo `yt-dow
 1.  **Python 3.x** instalado.
 2.  **pip** (gerenciador de pacotes do Python) instalado.
 3.  **PyInstaller** instalado: `pip install pyinstaller`
-4.  **yt-dlp** e **PySide6** instalados: `pip install -r ../requirements.txt`
+4.  **yt-dlp** e **PySide6** instalados: `pip install -r ../requirements.txt` (Este arquivo agora contém as versões específicas das dependências.)
 5.  **FFmpeg** e **FFprobe** devem estar disponíveis no diretório `bin/` dentro do projeto, ou no PATH do sistema.
 
 ### Comando de Compilação:
