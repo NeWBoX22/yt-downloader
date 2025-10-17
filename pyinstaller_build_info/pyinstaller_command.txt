@@ -1,2 +1,0 @@
-pyinstaller --noconfirm --onefile --windowed --add-data "assets;assets" --add-data "bin;bin" --icon="assets/icon.ico" main.py
-
